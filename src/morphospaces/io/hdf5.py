@@ -1,7 +1,8 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Tuple
 
 import h5py
 import numpy as np
+import torch
 
 
 def _write_dataset_from_array(
@@ -9,14 +10,17 @@ def _write_dataset_from_array(
     dataset_name: str,
     dataset_array: np.ndarray,
     compression: str = "gzip",
+    chunks: Optional[Tuple[int, ...]] = None,
 ):
-    file_handle.create_dataset(
-        dataset_name,
-        dataset_array.shape,
-        dtype=dataset_array.dtype,
-        data=dataset_array,
-        compression=compression,
-    )
+    dataset_kwargs = {
+        "name": dataset_name,
+        "data": dataset_array,
+        "compression": compression,
+    }
+    if chunks is not None:
+        dataset_kwargs.update({"chunks": chunks})
+
+    file_handle.create_dataset(**dataset_kwargs)
 
 
 def _write_dataset_from_dict(
@@ -24,15 +28,20 @@ def _write_dataset_from_dict(
     dataset_name: str,
     dataset: Dict[str, Any],
     compression: str = "gzip",
+    chunks: Optional[Tuple[int, ...]] = None,
 ):
-    dataset_array = dataset["data"]
-    dset = file_handle.create_dataset(
-        dataset_name,
-        dataset_array.shape,
-        dtype=dataset_array.dtype,
-        data=dataset_array,
-        compression=compression,
-    )
+    dataset_kwargs = {
+        "name": dataset_name,
+        "data": dataset["data"],
+        "compression": compression,
+    }
+    if chunks is not None:
+        dataset_kwargs.update({"chunks": chunks})
+
+    if "chunks" in dataset:
+        dataset_kwargs.update({"chunks": dataset["chunks"]})
+
+    dset = file_handle.create_dataset(**dataset_kwargs)
 
     dataset_attrs = dataset.get("attrs", None)
     if dataset_attrs is not None:
@@ -41,7 +50,10 @@ def _write_dataset_from_dict(
 
 
 def write_multi_dataset_hdf(
-    file_path: str, compression: str = "gzip", **kwargs
+    file_path: str,
+    compression: str = "gzip",
+    chunks: Optional[Tuple[int, ...]] = None,
+    **kwargs
 ):
     """Write a multidataset hdf5 file.
 
@@ -69,6 +81,22 @@ def write_multi_dataset_hdf(
                     dataset_name=k,
                     dataset_array=v,
                     compression=compression,
+                    chunks=chunks,
+                )
+            elif isinstance(v, torch.Tensor):
+                _write_dataset_from_array(
+                    file_handle=f,
+                    dataset_name=k,
+                    dataset_array=v.cpu().numpy(),
+                    compression=compression,
+                    chunks=chunks,
+                )
+            elif isinstance(v, torch.Tensor):
+                _write_dataset_from_array(
+                    file_handle=f,
+                    dataset_name=k,
+                    dataset_array=v.cpu().numpy(),
+                    compression=compression,
                 )
             else:
                 _write_dataset_from_dict(
@@ -76,4 +104,5 @@ def write_multi_dataset_hdf(
                     dataset_name=k,
                     dataset=v,
                     compression=compression,
+                    chunks=chunks,
                 )
