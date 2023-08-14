@@ -154,6 +154,8 @@ class FilterSliceBuilder(SliceBuilder):
         # ignore slices containing too much ignore_index
         filtered_slices = list(filter(ignore_predicate, zipped_slices))
         # unzip and save slices
-        raw_slices, label_slices = zip(*filtered_slices)
-        self._raw_slices = list(raw_slices)
-        self._label_slices = list(label_slices)
+        #skip empty slices
+        if len(list(filtered_slices)) == 2:
+            raw_slices, label_slices = zip(*filtered_slices)
+            self._raw_slices = list(raw_slices)
+            self._label_slices = list(label_slices)
